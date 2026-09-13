@@ -25,7 +25,7 @@ class VisionHUD(QWidget):
             Qt.WindowType.SubWindow
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.resize(420, 610)
+        self.resize(430, 640)
         
         self.old_pos = QPoint()
 
@@ -86,48 +86,133 @@ class VisionHUD(QWidget):
 
     def init_ui(self):
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)
+        main_layout.setContentsMargins(12, 12, 12, 12)
 
-        # Glass Container Card
+        # Main Light Glass Container Card
         self.card = QFrame(self)
         self.card.setStyleSheet("""
             QFrame {
-                background-color: rgba(22, 24, 30, 215);
-                border: 1px solid rgba(255, 255, 255, 35);
-                border-radius: 22px;
+                background-color: rgba(245, 247, 250, 235);
+                border: 1.5px solid rgba(200, 205, 215, 150);
+                border-radius: 28px;
             }
         """)
         card_layout = QVBoxLayout(self.card)
-        card_layout.setContentsMargins(15, 15, 15, 15)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
 
-        # Title Bar / Header
-        header_layout = QHBoxLayout()
-        self.title_lbl = QLabel(" VISION HUD // ROULETTE", self)
-        self.title_lbl.setStyleSheet("color: rgba(255, 255, 255, 200); font-weight: bold; font-size: 13px; border: none;")
-        header_layout.addWidget(self.title_lbl)
-        
-        close_btn = QLabel("✕", self)
-        close_btn.setStyleSheet("color: rgba(255, 255, 255, 150); font-weight: bold; font-size: 14px; border: none;")
-        close_btn.mousePressEvent = lambda e: self.close()
-        header_layout.addWidget(close_btn, alignment=Qt.AlignmentFlag.AlignRight)
-        card_layout.addLayout(header_layout)
+        # 1. Top Glass Pill Badges Row (Light Theme)
+        pills_layout = QHBoxLayout()
+        pills_layout.setSpacing(8)
 
-        # Camera Display Screen Card
+        self.pill_mode = QLabel("☀️ LIGHT HUD", self)
+        self.pill_mode.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pill_mode.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 6);
+            color: rgba(40, 45, 60, 220);
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 6px 10px;
+            border: 1px solid rgba(0, 0, 0, 12);
+        """)
+        pills_layout.addWidget(self.pill_mode)
+
+        self.pill_cooldown = QLabel("⏳ Ready", self)
+        self.pill_cooldown.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pill_cooldown.setStyleSheet("""
+            background-color: rgba(0, 180, 100, 12);
+            color: #008050;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 6px 10px;
+            border: 1px solid rgba(0, 180, 100, 30);
+        """)
+        pills_layout.addWidget(self.pill_cooldown)
+
+        # Close Pill Button
+        close_pill = QLabel("✕", self)
+        close_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        close_pill.setStyleSheet("""
+            background-color: rgba(220, 40, 70, 12);
+            color: #D61A3C;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 6px 12px;
+            border: 1px solid rgba(220, 40, 70, 30);
+        """)
+        close_pill.mousePressEvent = lambda e: self.close()
+        pills_layout.addWidget(close_pill)
+
+        card_layout.addLayout(pills_layout)
+
+        # 2. Camera Display Screen Card (Light Rounded Inner Panel)
         self.cam_lbl = QLabel(self)
-        self.cam_lbl.setFixedSize(360, 220)
-        self.cam_lbl.setStyleSheet("background-color: rgba(10, 10, 15, 200); border-radius: 14px; border: 1px solid rgba(255,255,255,20);")
+        self.cam_lbl.setFixedSize(364, 210)
+        self.cam_lbl.setStyleSheet("""
+            background-color: rgba(230, 233, 240, 200);
+            border-radius: 18px;
+            border: 1px solid rgba(200, 205, 215, 100);
+        """)
         self.cam_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        card_layout.addWidget(self.cam_lbl)
+        card_layout.addWidget(self.cam_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # Telemetry Text Labels
+        # 3. Status Telemetry Container Card (Bottom Light Panel)
+        status_panel = QFrame(self)
+        status_panel.setStyleSheet("""
+            QFrame {
+                background-color: rgba(235, 238, 245, 200);
+                border: 1px solid rgba(200, 205, 215, 120);
+                border-radius: 16px;
+            }
+        """)
+        status_layout = QVBoxLayout(status_panel)
+        status_layout.setContentsMargins(12, 10, 12, 10)
+        status_layout.setSpacing(6)
+
         self.status_lbl = QLabel("Status: Initializing...", self)
-        self.status_lbl.setStyleSheet("color: #00FF99; font-size: 12px; font-weight: bold; border: none;")
-        card_layout.addWidget(self.status_lbl)
+        self.status_lbl.setStyleSheet("color: #008050; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        status_layout.addWidget(self.status_lbl)
 
         self.window_lbl = QLabel("Active App: Scanning...", self)
-        self.window_lbl.setStyleSheet("color: rgba(200, 200, 220, 180); font-size: 11px; border: none;")
-        card_layout.addWidget(self.window_lbl)
+        self.window_lbl.setStyleSheet("color: rgba(80, 85, 100, 180); font-size: 11px; border: none; background: transparent;")
+        status_layout.addWidget(self.window_lbl)
 
+        card_layout.addWidget(status_panel)
+
+        # 4. Bottom Action Pill Buttons (Light iOS Style Bar)
+        bottom_bar = QHBoxLayout()
+        bottom_bar.setSpacing(10)
+
+        self.btn_settings = QLabel("⚙️ Settings", self)
+        self.btn_settings.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btn_settings.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 5);
+            color: rgba(50, 55, 70, 200);
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 8px 14px;
+            border: 1px solid rgba(0, 0, 0, 10);
+        """)
+        bottom_bar.addWidget(self.btn_settings)
+
+        self.btn_message = QLabel("💬 Anti-Productive HUD", self)
+        self.btn_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btn_message.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 5);
+            color: rgba(50, 55, 70, 200);
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 8px 14px;
+            border: 1px solid rgba(0, 0, 0, 10);
+        """)
+        bottom_bar.addWidget(self.btn_message)
+
+        card_layout.addLayout(bottom_bar)
         main_layout.addWidget(self.card)
 
     def update_frame(self):
@@ -160,7 +245,7 @@ class VisionHUD(QWidget):
             for d in fd.detections:
                 box = d.location_data.relative_bounding_box
                 x, y, bw, bh = int(box.xmin*w), int(box.ymin*h), int(box.width*w), int(box.height*h)
-                cv2.rectangle(frame, (x, y), (x+bw, y+bh), (0, 255, 120), 1)
+                cv2.rectangle(frame, (x, y), (x+bw, y+bh), (0, 150, 80), 2)
 
         # 3. YOLO Detection
         results = self.model(frame, stream=True, verbose=False)
@@ -180,10 +265,36 @@ class VisionHUD(QWidget):
         if slack_mode:
             working = False
             status_text = "SUPPRESSED (ALREADY SLACKING)"
-            status_color = "#FFAA00"
+            status_color = "#B36B00"
+            self.pill_cooldown.setText("🛡️ Suppressed")
+            self.pill_cooldown.setStyleSheet("""
+                background-color: rgba(220, 140, 0, 15);
+                color: #B36B00;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 6px 10px;
+                border: 1px solid rgba(220, 140, 0, 30);
+            """)
         elif working:
             status_text = "DANGER: WORKING DETECTED"
-            status_color = "#FF3355"
+            status_color = "#D61A3C"
+            remaining = int(max(0, self.cooldown - elapsed))
+            if remaining > 0:
+                self.pill_cooldown.setText(f"⏱️ Cooldown {remaining}s")
+            else:
+                self.pill_cooldown.setText("⚡ TRIGGERING")
+            
+            self.pill_cooldown.setStyleSheet("""
+                background-color: rgba(220, 40, 70, 15);
+                color: #D61A3C;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 6px 10px;
+                border: 1px solid rgba(220, 40, 70, 30);
+            """)
+
             if not self.is_distracted and elapsed > self.cooldown:
                 # Trigger Audio Shame & Random Link (Zen Zone or YouTube)
                 self.speak_warning()
@@ -193,17 +304,27 @@ class VisionHUD(QWidget):
                 self.last_trigger = now
         else:
             status_text = "SAFE / IDLE"
-            status_color = "#00FF99"
+            status_color = "#008050"
             self.is_distracted = False
+            self.pill_cooldown.setText("✨ Ready")
+            self.pill_cooldown.setStyleSheet("""
+                background-color: rgba(0, 180, 100, 12);
+                color: #008050;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 6px 10px;
+                border: 1px solid rgba(0, 180, 100, 30);
+            """)
 
         # Update UI Text Labels
         self.status_lbl.setText(status_text)
-        self.status_lbl.setStyleSheet(f"color: {status_color}; font-size: 12px; font-weight: bold; border: none;")
-        self.window_lbl.setText(f"Active App: {active_title[:35]}..")
+        self.status_lbl.setStyleSheet(f"color: {status_color}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        self.window_lbl.setText(f"App: {active_title[:32]}..")
 
         # Render Camera Frame to PyQt Label
         qt_img = QImage(frame.data, w, h, 3 * w, QImage.Format.Format_BGR888)
-        self.cam_lbl.setPixmap(QPixmap.fromImage(qt_img).scaled(360, 220, Qt.AspectRatioMode.KeepAspectRatio))
+        self.cam_lbl.setPixmap(QPixmap.fromImage(qt_img).scaled(364, 210, Qt.AspectRatioMode.KeepAspectRatio))
 
     def mousePressEvent(self, event):
         self.old_pos = event.globalPosition().toPoint()
