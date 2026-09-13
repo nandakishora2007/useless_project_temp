@@ -13,3 +13,5 @@
 
 -- 11.55 am resolved the streaming issue i was putting in https instead of http as my laptop was streaming otherwise 
 
+-- 1.30 pm As a immediate output i am not doing the external camera but going to native webcame and chrome webpage opening. 
+
