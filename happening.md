@@ -15,3 +15,6 @@
 
 -- 1.30 pm As a immediate output i am not doing the external camera but going to native webcame and chrome webpage opening. 
 
+-- 1.33 pm Now i am having pip install errors 
+
+-- 1.35 pm the installation is a success. 
