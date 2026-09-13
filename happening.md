@@ -18,3 +18,7 @@
 -- 1.33 pm Now i am having pip install errors 
 
 -- 1.35 pm the installation is a success. 
+
+-- 1.50 pm was able to open a new tab to distract the user while he was looking at his screen for a certain time.
+
+-- 2.05 pm was able to create a computation page for the user to see what is happening real time 
