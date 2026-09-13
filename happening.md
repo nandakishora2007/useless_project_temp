@@ -9,3 +9,5 @@
 
 -- 11.30 am unable to get access for the stream from another device
 
+-- 11.50 am able to get the device ip from a python script findip.py
+
