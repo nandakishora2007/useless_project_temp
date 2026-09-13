@@ -22,3 +22,9 @@
 -- 1.50 pm was able to open a new tab to distract the user while he was looking at his screen for a certain time.
 
 -- 2.05 pm was able to create a computation page for the user to see what is happening real time 
+
+
+-- 2.30 pm the trigger was too much
+
+-- 3.00 pm the trigger was reduced and added in a better ui and currently trying implement a face detection and a close vicinity trigger along with work in a book also
+
