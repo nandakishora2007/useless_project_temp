@@ -100,9 +100,9 @@ class VisionHUD(QWidget):
         card_layout = QVBoxLayout(self.card)
         card_layout.setContentsMargins(15, 15, 15, 15)
 
-        # Title Bar / Header
+        # Title Bar / Header (Updated with app name)
         header_layout = QHBoxLayout()
-        self.title_lbl = QLabel(" VISION HUD // ROULETTE", self)
+        self.title_lbl = QLabel(" ANTI_PRODUCTIVE HUD", self)
         self.title_lbl.setStyleSheet("color: rgba(255, 255, 255, 200); font-weight: bold; font-size: 13px; border: none;")
         header_layout.addWidget(self.title_lbl)
         

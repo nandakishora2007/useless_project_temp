@@ -46,21 +46,20 @@ class VisionHUD(QWidget):
         self.last_trigger = 0
         self.is_distracted = False
         
-        # Distraction Roulette Links (YouTube + The Zen Zone)
+        # Meme Roulette Links
         self.distractions = [
-            "https://thezen.zone/",                       # The Zen Zone website
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",  # The Classic
-            "https://www.youtube.com/watch?v=V-_O7nl0Ii0",  # Fascinating science breakdown
-            "https://www.youtube.com/watch?v=8Zbf9_jK-ZI",  # Mind-bending visualization
-            "https://www.youtube.com/watch?v=kJQP7kiw5Fk",  # High-energy distraction
-            "https://www.youtube.com/watch?v=9bZkp7q19f0"   # Viral phenomenon
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "https://thezen.zone/",
+            "https://zoomquilt.org/",
+            "https://pointerpointer.com/",
+            "https://eelslap.com/"
         ]
         
         # Audio Shame Messages
         self.shame_phrases = [
             "Productivity detected! Drop your tools immediately!",
             "Warning. Overworking hazard detected. Cease coding at once.",
-            "Hey! Stop being productive and take a break.",
+            "Hey! Stop being productive and look at a meme.",
             "Error 404: Fun not found. Deploying distraction!"
         ]
 
@@ -102,7 +101,7 @@ class VisionHUD(QWidget):
 
         # Title Bar / Header
         header_layout = QHBoxLayout()
-        self.title_lbl = QLabel(" VISION HUD // ROULETTE", self)
+        self.title_lbl = QLabel(" VISION HUD // AUDIO + ROULETTE", self)
         self.title_lbl.setStyleSheet("color: rgba(255, 255, 255, 200); font-weight: bold; font-size: 13px; border: none;")
         header_layout.addWidget(self.title_lbl)
         
@@ -173,7 +172,7 @@ class VisionHUD(QWidget):
         if face_found and important_work:
             working = True
 
-        # 4. Trigger & Cooldown Logic with Audio & Roulette
+        # 4. Trigger & Cooldown Logic with Audio & Meme Roulette
         now = time.time()
         elapsed = now - self.last_trigger
 
@@ -185,7 +184,7 @@ class VisionHUD(QWidget):
             status_text = "DANGER: WORKING DETECTED"
             status_color = "#FF3355"
             if not self.is_distracted and elapsed > self.cooldown:
-                # Trigger Audio Shame & Random Link (Zen Zone or YouTube)
+                # Trigger Audio Shame & Random Distraction Link
                 self.speak_warning()
                 target_url = random.choice(self.distractions)
                 webbrowser.open(target_url)

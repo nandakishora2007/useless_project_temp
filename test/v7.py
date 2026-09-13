@@ -1,17 +1,14 @@
 import sys
 import time
-import random
 import webbrowser
-import threading
 import cv2
 import numpy as np
 import mediapipe as mp
 from ultralytics import YOLO
 import pygetwindow as gw
-import pyttsx3
 
 from PyQt6.QtCore import QTimer, Qt, QPoint
-from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtGui import QImage, QPixmap, QColor, QPainter, QBrush, QPen
 from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame
 
 class VisionHUD(QWidget):
@@ -25,64 +22,33 @@ class VisionHUD(QWidget):
             Qt.WindowType.SubWindow
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.resize(420, 610)
+        self.resize(420, 680)
         
+        # Dragging variables for frameless window
         self.old_pos = QPoint()
 
-        # AI Models & Audio Initialization
-        print("Loading AI Engine & Audio Synthesizer...")
+        # AI Models Initialization
+        print("Loading AI Engine...")
         self.model = YOLO('yolov8n.pt')
         self.mp_face = mp.solutions.face_detection
         self.face_detection = self.mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.6)
         
-        # Initialize Text-to-Speech Engine
-        self.tts_engine = pyttsx3.init()
-        self.tts_engine.setProperty('rate', 170)
-
         self.cap = cv2.VideoCapture(0)
 
-        # Logic States & Feature Lists
+        # Logic States
         self.cooldown = 25
         self.last_trigger = 0
         self.is_distracted = False
-        
-        # Distraction Roulette Links (YouTube + The Zen Zone)
-        self.distractions = [
-            "https://thezen.zone/",                       # The Zen Zone website
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",  # The Classic
-            "https://www.youtube.com/watch?v=V-_O7nl0Ii0",  # Fascinating science breakdown
-            "https://www.youtube.com/watch?v=8Zbf9_jK-ZI",  # Mind-bending visualization
-            "https://www.youtube.com/watch?v=kJQP7kiw5Fk",  # High-energy distraction
-            "https://www.youtube.com/watch?v=9bZkp7q19f0"   # Viral phenomenon
-        ]
-        
-        # Audio Shame Messages
-        self.shame_phrases = [
-            "Productivity detected! Drop your tools immediately!",
-            "Warning. Overworking hazard detected. Cease coding at once.",
-            "Hey! Stop being productive and take a break.",
-            "Error 404: Fun not found. Deploying distraction!"
-        ]
-
         self.work_objects = ['laptop', 'keyboard', 'book', 'mouse', 'scissors']
         self.slack_kw = ['youtube', 'netflix', 'twitch', 'discord', 'steam', 'game', 'reddit', 'spotify']
         self.work_kw = ['visual studio', 'vscode', 'github', 'stackoverflow', 'chatgpt', 'docs', 'python', 'terminal']
 
         self.init_ui()
 
+        # UI Refresh Timer (30 FPS)
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)
-
-    def speak_warning(self):
-        def run_speech():
-            try:
-                phrase = random.choice(self.shame_phrases)
-                self.tts_engine.say(phrase)
-                self.tts_engine.runAndWait()
-            except Exception:
-                pass
-        threading.Thread(target=run_speech, daemon=True).start()
 
     def init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -102,7 +68,7 @@ class VisionHUD(QWidget):
 
         # Title Bar / Header
         header_layout = QHBoxLayout()
-        self.title_lbl = QLabel(" VISION HUD // ROULETTE", self)
+        self.title_lbl = QLabel(" VISION HUD // FOCUS", self)
         self.title_lbl.setStyleSheet("color: rgba(255, 255, 255, 200); font-weight: bold; font-size: 13px; border: none;")
         header_layout.addWidget(self.title_lbl)
         
@@ -127,6 +93,10 @@ class VisionHUD(QWidget):
         self.window_lbl = QLabel("Active App: Scanning...", self)
         self.window_lbl.setStyleSheet("color: rgba(200, 200, 220, 180); font-size: 11px; border: none;")
         card_layout.addWidget(self.window_lbl)
+
+        self.metrics_lbl = QLabel("Telemetry: Safe", self)
+        self.metrics_lbl.setStyleSheet("color: rgba(160, 160, 190, 180); font-size: 11px; border: none;")
+        card_layout.addWidget(self.metrics_lbl)
 
         main_layout.addWidget(self.card)
 
@@ -164,16 +134,20 @@ class VisionHUD(QWidget):
 
         # 3. YOLO Detection
         results = self.model(frame, stream=True, verbose=False)
+        detected_objs = []
         for r in results:
             for b in r.boxes:
                 obj_name = self.model.names[int(b.cls[0])]
                 if float(b.conf[0]) > 0.4 and obj_name in self.work_objects:
+                    detected_objs.append(obj_name)
                     working = True
+                    x1, y1, x2, y2 = map(int, b.xyxy[0])
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 80, 255), 1)
 
         if face_found and important_work:
             working = True
 
-        # 4. Trigger & Cooldown Logic with Audio & Roulette
+        # 4. Trigger & Cooldown Logic
         now = time.time()
         elapsed = now - self.last_trigger
 
@@ -185,10 +159,7 @@ class VisionHUD(QWidget):
             status_text = "DANGER: WORKING DETECTED"
             status_color = "#FF3355"
             if not self.is_distracted and elapsed > self.cooldown:
-                # Trigger Audio Shame & Random Link (Zen Zone or YouTube)
-                self.speak_warning()
-                target_url = random.choice(self.distractions)
-                webbrowser.open(target_url)
+                webbrowser.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
                 self.is_distracted = True
                 self.last_trigger = now
         else:
@@ -200,11 +171,13 @@ class VisionHUD(QWidget):
         self.status_lbl.setText(status_text)
         self.status_lbl.setStyleSheet(f"color: {status_color}; font-size: 12px; font-weight: bold; border: none;")
         self.window_lbl.setText(f"Active App: {active_title[:35]}..")
+        self.metrics_lbl.setText(f"Objects: {', '.join(set(detected_objs)) if detected_objs else 'None'}")
 
         # Render Camera Frame to PyQt Label
         qt_img = QImage(frame.data, w, h, 3 * w, QImage.Format.Format_BGR888)
         self.cam_lbl.setPixmap(QPixmap.fromImage(qt_img).scaled(360, 220, Qt.AspectRatioMode.KeepAspectRatio))
 
+    # Enable window dragging with mouse
     def mousePressEvent(self, event):
         self.old_pos = event.globalPosition().toPoint()
 

@@ -11,36 +11,34 @@
 
 ### Team Members
 - Team Lead: Nandakishor - SCTCE
-- Member 2: [Name] - [College]
-- Member 3: [Name] - [College]
+
 
 ### Project Description
 DON'T ALLOW ANYONE TO WORK
 ### The Problem (that doesn't exist)
-People have a craving to work (if not all some)
+People have a craving to work (if not all some). 
 ### The Solution (that nobody asked for)
 Lure people with this working problem by providing other fun activities to do
 ## Technical Details
 ### Technologies/Components Used
 For Software:
-- [Languages used]
-- [Frameworks used]
-- [Libraries used]
-- [Tools used]
+- Python
+- PyQt6, OpenCV
+- Ultralytics YOLOv8, MediaPipe, NumPy
+- PyGetWindow, Pyttsx3, Webbrowser & Threading
 
 For Hardware:
-- [List main components]
-- [List specifications]
-- [List tools required]
+- Laptop, webcam
 
 ### Implementation
-For Software:
+For Software: app.py
 # Installation
-[commands]
-
+requirements.md
 # Run
-[commands]
-
+python -m vvenv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.md
+python vision_hud.py
 ### Project Documentation
 For Software:
 

@@ -1,3 +1,7 @@
+PyQt6
 opencv-python
-flask
-mediapipe==0.10.
+ultralytics
+mediapipe
+pygetwindow
+pyttsx3 
+numpy
