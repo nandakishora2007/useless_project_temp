@@ -2,7 +2,7 @@
 
 ## Basic Details
 
-### Team Name: NK
+### Team Name: NK 
 
 ### Team Members
 
