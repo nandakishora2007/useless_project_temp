@@ -11,3 +11,5 @@
 
 -- 11.50 am able to get the device ip from a python script findip.py
 
+-- 11.55 am resolved the streaming issue i was putting in https instead of http as my laptop was streaming otherwise 
+
