@@ -1,210 +1,341 @@
-import cv2
+import sys
 import time
+import random
 import webbrowser
+import threading
+import cv2
 import numpy as np
 import mediapipe as mp
 from ultralytics import YOLO
+import pygetwindow as gw
+import pyttsx3
 
-print("Booting Anti-Productivity Engine...")
-model = YOLO('yolov8n.pt') 
+from PyQt6.QtCore import QTimer, Qt, QPoint
+from PyQt6.QtGui import QImage, QPixmap
+from PyQt6.QtWidgets import QApplication, QLabel, QVBoxLayout, QHBoxLayout, QWidget, QFrame
 
-mp_face_mesh = mp.solutions.face_mesh
-mp_drawing = mp.solutions.drawing_utils
+class VisionHUD(QWidget):
+    def __init__(self):
+        super().__init__()
+        
+        # Window Flags: Frameless, Always on Top, Translucent Background
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | 
+            Qt.WindowType.WindowStaysOnTopHint | 
+            Qt.WindowType.SubWindow
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.resize(430, 640)
+        
+        self.old_pos = QPoint()
 
-face_mesh = mp_face_mesh.FaceMesh(
-    max_num_faces=1,
-    refine_landmarks=True,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
-)
+        # AI Models & Audio Initialization
+        print("Loading AI Engine & Audio Synthesizer...")
+        self.model = YOLO('yolov8n.pt')
+        self.mp_face = mp.solutions.face_detection
+        self.face_detection = self.mp_face.FaceDetection(model_selection=0, min_detection_confidence=0.6)
+        
+        # Initialize Text-to-Speech Engine
+        self.tts_engine = pyttsx3.init()
+        self.tts_engine.setProperty('rate', 170)
 
-cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(0)
 
-# Configuration & Timers
-COOLDOWN_SECONDS = 20
-NOTEBOOK_WORK_THRESHOLD = 2.5 
-WORK_OBJECTS = ['laptop', 'keyboard', 'book', 'mouse', 'scissors']
+        # Logic States & Feature Lists
+        self.cooldown = 25
+        self.last_trigger = 0
+        self.is_distracted = False
+        
+        # Distraction Roulette Links (YouTube + The Zen Zone)
+        self.distractions = [
+            "https://thezen.zone/",                       # The Zen Zone website
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",  # The Classic
+            "https://www.youtube.com/watch?v=V-_O7nl0Ii0",  # Fascinating science breakdown
+            "https://www.youtube.com/watch?v=8Zbf9_jK-ZI",  # Mind-bending visualization
+            "https://www.youtube.com/watch?v=kJQP7kiw5Fk",  # High-energy distraction
+            "https://www.youtube.com/watch?v=9bZkp7q19f0"   # Viral phenomenon
+        ]
+        
+        # Audio Shame Messages
+        self.shame_phrases = [
+            "Productivity detected! Drop your tools immediately!",
+            "Warning. Overworking hazard detected. Cease coding at once.",
+            "Hey! Stop being productive and take a break.",
+            "Error 404: Fun not found. Deploying distraction!"
+        ]
 
-is_distracted = False
-last_trigger_time = 0
-downward_look_start = None
+        self.work_objects = ['laptop', 'keyboard', 'book', 'mouse', 'scissors']
+        self.slack_kw = ['youtube', 'netflix', 'twitch', 'discord', 'steam', 'game', 'reddit', 'spotify']
+        self.work_kw = ['visual studio', 'vscode', 'github', 'stackoverflow', 'chatgpt', 'docs', 'python', 'terminal']
 
-while cap.isOpened():
-    success, frame = cap.read()
-    if not success: break
+        self.init_ui()
 
-    # 1. Smooth out frame for UI (Mirror it)
-    frame = cv2.flip(frame, 1) 
-    img_h, img_w, _ = frame.shape
-    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    
-    # State tracking for this frame
-    gaze_status = "No Face Detected"
-    pitch, yaw = 0.0, 0.0
-    detected_objects = []
-    person_is_working = False
-    elapsed_down_time = 0.0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(30)
 
-    # ==========================================
-    # 2. FACE MESH & POSE TRACKING
-    # ==========================================
-    fm_results = face_mesh.process(image_rgb)
-    
-    if fm_results.multi_face_landmarks:
-        for face_landmarks in fm_results.multi_face_landmarks:
-            # Subdued white wireframe (Better UX than thick green)
-            mp_drawing.draw_landmarks(
-                image=frame,
-                landmark_list=face_landmarks,
-                connections=mp_face_mesh.FACEMESH_TESSELATION,
-                landmark_drawing_spec=None,
-                connection_drawing_spec=mp.solutions.drawing_utils.DrawingSpec(color=(255, 255, 255), thickness=1, circle_radius=1) 
-            )
+    def speak_warning(self):
+        def run_speech():
+            try:
+                phrase = random.choice(self.shame_phrases)
+                self.tts_engine.say(phrase)
+                self.tts_engine.runAndWait()
+            except Exception:
+                pass
+        threading.Thread(target=run_speech, daemon=True).start()
 
-            face_2d, face_3d = [], []
-            key_indices = [1, 152, 33, 263, 61, 291]
-            for idx, lm in enumerate(face_landmarks.landmark):
-                if idx in key_indices:
-                    x, y = int(lm.x * img_w), int(lm.y * img_h)
-                    face_2d.append([x, y])
-                    face_3d.append([x, y, lm.z])
+    def init_ui(self):
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(12, 12, 12, 12)
 
-            face_2d, face_3d = np.array(face_2d, dtype=np.float64), np.array(face_3d, dtype=np.float64)
-            cam_matrix = np.array([[1 * img_w, 0, img_w / 2], [0, 1 * img_w, img_h / 2], [0, 0, 1]])
-            dist_matrix = np.zeros((4, 1), dtype=np.float64)
+        # Main Light Glass Container Card
+        self.card = QFrame(self)
+        self.card.setStyleSheet("""
+            QFrame {
+                background-color: rgba(245, 247, 250, 235);
+                border: 1.5px solid rgba(200, 205, 215, 150);
+                border-radius: 28px;
+            }
+        """)
+        card_layout = QVBoxLayout(self.card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
+        card_layout.setSpacing(10)
 
-            _, rot_vec, trans_vec = cv2.solvePnP(face_3d, face_2d, cam_matrix, dist_matrix)
-            rmat, _ = cv2.Rodrigues(rot_vec)
-            angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
+        # 1. Top Glass Pill Badges Row (Light Theme)
+        pills_layout = QHBoxLayout()
+        pills_layout.setSpacing(8)
 
-            pitch = angles[0] * 360
-            yaw = angles[1] * 360
+        self.pill_mode = QLabel("☀️ LIGHT HUD", self)
+        self.pill_mode.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pill_mode.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 6);
+            color: rgba(40, 45, 60, 220);
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 6px 10px;
+            border: 1px solid rgba(0, 0, 0, 12);
+        """)
+        pills_layout.addWidget(self.pill_mode)
 
-            # Posture Logic
-            if pitch < -12:
-                if downward_look_start is None:
-                    downward_look_start = time.time()
-                elapsed_down_time = time.time() - downward_look_start
-                
-                if elapsed_down_time >= NOTEBOOK_WORK_THRESHOLD:
-                    gaze_status = "Focused on Desk!"
-                    person_is_working = True
-                else:
-                    gaze_status = "Glancing Down..."
-            elif yaw < -15 or yaw > 15:
-                gaze_status = "Looking Away (Idle)"
-                downward_look_start = None
+        self.pill_cooldown = QLabel("⏳ Ready", self)
+        self.pill_cooldown.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pill_cooldown.setStyleSheet("""
+            background-color: rgba(0, 180, 100, 12);
+            color: #008050;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 6px 10px;
+            border: 1px solid rgba(0, 180, 100, 30);
+        """)
+        pills_layout.addWidget(self.pill_cooldown)
+
+        # Close Pill Button
+        close_pill = QLabel("✕", self)
+        close_pill.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        close_pill.setStyleSheet("""
+            background-color: rgba(220, 40, 70, 12);
+            color: #D61A3C;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 6px 12px;
+            border: 1px solid rgba(220, 40, 70, 30);
+        """)
+        close_pill.mousePressEvent = lambda e: self.close()
+        pills_layout.addWidget(close_pill)
+
+        card_layout.addLayout(pills_layout)
+
+        # 2. Camera Display Screen Card (Light Rounded Inner Panel)
+        self.cam_lbl = QLabel(self)
+        self.cam_lbl.setFixedSize(364, 210)
+        self.cam_lbl.setStyleSheet("""
+            background-color: rgba(230, 233, 240, 200);
+            border-radius: 18px;
+            border: 1px solid rgba(200, 205, 215, 100);
+        """)
+        self.cam_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(self.cam_lbl, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        # 3. Status Telemetry Container Card (Bottom Light Panel)
+        status_panel = QFrame(self)
+        status_panel.setStyleSheet("""
+            QFrame {
+                background-color: rgba(235, 238, 245, 200);
+                border: 1px solid rgba(200, 205, 215, 120);
+                border-radius: 16px;
+            }
+        """)
+        status_layout = QVBoxLayout(status_panel)
+        status_layout.setContentsMargins(12, 10, 12, 10)
+        status_layout.setSpacing(6)
+
+        self.status_lbl = QLabel("Status: Initializing...", self)
+        self.status_lbl.setStyleSheet("color: #008050; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        status_layout.addWidget(self.status_lbl)
+
+        self.window_lbl = QLabel("Active App: Scanning...", self)
+        self.window_lbl.setStyleSheet("color: rgba(80, 85, 100, 180); font-size: 11px; border: none; background: transparent;")
+        status_layout.addWidget(self.window_lbl)
+
+        card_layout.addWidget(status_panel)
+
+        # 4. Bottom Action Pill Buttons (Light iOS Style Bar)
+        bottom_bar = QHBoxLayout()
+        bottom_bar.setSpacing(10)
+
+        self.btn_settings = QLabel("⚙️ Settings", self)
+        self.btn_settings.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btn_settings.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 5);
+            color: rgba(50, 55, 70, 200);
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 8px 14px;
+            border: 1px solid rgba(0, 0, 0, 10);
+        """)
+        bottom_bar.addWidget(self.btn_settings)
+
+        self.btn_message = QLabel("💬 Anti-Productive HUD", self)
+        self.btn_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.btn_message.setStyleSheet("""
+            background-color: rgba(0, 0, 0, 5);
+            color: rgba(50, 55, 70, 200);
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 14px;
+            padding: 8px 14px;
+            border: 1px solid rgba(0, 0, 0, 10);
+        """)
+        bottom_bar.addWidget(self.btn_message)
+
+        card_layout.addLayout(bottom_bar)
+        main_layout.addWidget(self.card)
+
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if not ret: return
+
+        frame = cv2.flip(frame, 1)
+        h, w, _ = frame.shape
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        working = False
+        face_found = False
+        active_title = "Desktop"
+
+        # 1. Active Window Check
+        try:
+            win = gw.getActiveWindow()
+            if win and win.title:
+                active_title = win.title.lower()
+        except:
+            pass
+
+        slack_mode = any(k in active_title for k in self.slack_kw)
+        important_work = any(k in active_title for k in self.work_kw)
+
+        # 2. Face Detection
+        fd = self.face_detection.process(rgb)
+        if fd.detections:
+            face_found = True
+            for d in fd.detections:
+                box = d.location_data.relative_bounding_box
+                x, y, bw, bh = int(box.xmin*w), int(box.ymin*h), int(box.width*w), int(box.height*h)
+                cv2.rectangle(frame, (x, y), (x+bw, y+bh), (0, 150, 80), 2)
+
+        # 3. YOLO Detection
+        results = self.model(frame, stream=True, verbose=False)
+        for r in results:
+            for b in r.boxes:
+                obj_name = self.model.names[int(b.cls[0])]
+                if float(b.conf[0]) > 0.4 and obj_name in self.work_objects:
+                    working = True
+
+        if face_found and important_work:
+            working = True
+
+        # 4. Trigger & Cooldown Logic with Audio & Roulette
+        now = time.time()
+        elapsed = now - self.last_trigger
+
+        if slack_mode:
+            working = False
+            status_text = "SUPPRESSED (ALREADY SLACKING)"
+            status_color = "#B36B00"
+            self.pill_cooldown.setText("🛡️ Suppressed")
+            self.pill_cooldown.setStyleSheet("""
+                background-color: rgba(220, 140, 0, 15);
+                color: #B36B00;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 6px 10px;
+                border: 1px solid rgba(220, 140, 0, 30);
+            """)
+        elif working:
+            status_text = "DANGER: WORKING DETECTED"
+            status_color = "#D61A3C"
+            remaining = int(max(0, self.cooldown - elapsed))
+            if remaining > 0:
+                self.pill_cooldown.setText(f"⏱️ Cooldown {remaining}s")
             else:
-                gaze_status = "Looking at Screen"
-                person_is_working = True
-                downward_look_start = None
-
-            # Sleeker 3D Gaze Pointer (Arrow)
-            nose_x, nose_y = int(face_landmarks.landmark[1].x * img_w), int(face_landmarks.landmark[1].y * img_h)
-            p2 = (int(nose_x + yaw * 3), int(nose_y - pitch * 3))
-            cv2.arrowedLine(frame, (nose_x, nose_y), p2, (0, 255, 255), 2, tipLength=0.2)
-    else:
-        downward_look_start = None
-
-    # ==========================================
-    # 3. YOLO OBJECT DETECTION
-    # ==========================================
-    results = model(frame, stream=True, verbose=False)
-    for r in results:
-        for box in r.boxes:
-            cls_id = int(box.cls[0])
-            obj_name = model.names[cls_id]
-            conf = float(box.conf[0])
+                self.pill_cooldown.setText("⚡ TRIGGERING")
             
-            if conf > 0.4:
-                detected_objects.append(obj_name)
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                
-                if obj_name in WORK_OBJECTS:
-                    person_is_working = True
-                    color = (0, 0, 255) # Red for danger (work)
-                else:
-                    color = (0, 255, 150) # Mint green for safe
-                
-                # Draw thinner bounding box and solid background for text
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color, 1)
-                cv2.rectangle(frame, (x1, y1 - 25), (x1 + 140, y1), color, -1)
-                cv2.putText(frame, f"{obj_name.upper()} {int(conf*100)}%", (x1 + 5, y1 - 8), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,0), 1)
+            self.pill_cooldown.setStyleSheet("""
+                background-color: rgba(220, 40, 70, 15);
+                color: #D61A3C;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 6px 10px;
+                border: 1px solid rgba(220, 40, 70, 30);
+            """)
 
-    # ==========================================
-    # 4. DISTRACTION TRIGGER LOGIC
-    # ==========================================
-    current_time = time.time()
-    time_since_last = current_time - last_trigger_time
-    
-    if person_is_working and not is_distracted:
-        if time_since_last > COOLDOWN_SECONDS:
-            webbrowser.open("https://www.youtube.com/watch?v=dQw4w9WgXcQ")
-            is_distracted = True
-            last_trigger_time = current_time
-    elif not person_is_working:
-        is_distracted = False
+            if not self.is_distracted and elapsed > self.cooldown:
+                # Trigger Audio Shame & Random Link (Zen Zone or YouTube)
+                self.speak_warning()
+                target_url = random.choice(self.distractions)
+                webbrowser.open(target_url)
+                self.is_distracted = True
+                self.last_trigger = now
+        else:
+            status_text = "SAFE / IDLE"
+            status_color = "#008050"
+            self.is_distracted = False
+            self.pill_cooldown.setText("✨ Ready")
+            self.pill_cooldown.setStyleSheet("""
+                background-color: rgba(0, 180, 100, 12);
+                color: #008050;
+                font-size: 11px;
+                font-weight: bold;
+                border-radius: 14px;
+                padding: 6px 10px;
+                border: 1px solid rgba(0, 180, 100, 30);
+            """)
 
-    # ==========================================
-    # 5. SLEEK UI / UX DASHBOARD
-    # ==========================================
-    # Dark semi-transparent sidebar
-    overlay = frame.copy()
-    cv2.rectangle(overlay, (0, 0), (330, img_h), (15, 15, 15), -1)
-    cv2.addWeighted(overlay, 0.85, frame, 0.15, 0, frame)
+        # Update UI Text Labels
+        self.status_lbl.setText(status_text)
+        self.status_lbl.setStyleSheet(f"color: {status_color}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        self.window_lbl.setText(f"App: {active_title[:32]}..")
 
-    font = cv2.FONT_HERSHEY_SIMPLEX
-    
-    # Header
-    cv2.putText(frame, "ANTI-PRODUCTIVITY AI", (15, 35), font, 0.7, (255, 255, 255), 2)
-    cv2.line(frame, (15, 50), (315, 50), (100, 100, 100), 1)
+        # Render Camera Frame to PyQt Label
+        qt_img = QImage(frame.data, w, h, 3 * w, QImage.Format.Format_BGR888)
+        self.cam_lbl.setPixmap(QPixmap.fromImage(qt_img).scaled(364, 210, Qt.AspectRatioMode.KeepAspectRatio))
 
-    # Verdict Module
-    cv2.putText(frame, "SYSTEM VERDICT", (15, 80), font, 0.4, (150, 150, 150), 1)
-    if person_is_working:
-        cv2.putText(frame, "WORKING!", (15, 115), font, 1.3, (50, 50, 255), 3)
-    else:
-        cv2.putText(frame, "IDLE / SAFE", (15, 115), font, 1.3, (50, 255, 50), 3)
+    def mousePressEvent(self, event):
+        self.old_pos = event.globalPosition().toPoint()
 
-    # Telemetry Data
-    cv2.putText(frame, "LIVE TELEMETRY", (15, 160), font, 0.4, (150, 150, 150), 1)
-    cv2.putText(frame, "Gaze:", (15, 185), font, 0.5, (200, 200, 200), 1)
-    cv2.putText(frame, f"{gaze_status}", (75, 185), font, 0.5, (255, 255, 255), 1)
-    
-    cv2.putText(frame, "Desk:", (15, 215), font, 0.5, (200, 200, 200), 1)
-    objs_str = ", ".join(set(detected_objects)) if detected_objects else "Clear"
-    cv2.putText(frame, f"{objs_str}", (75, 215), font, 0.5, (255, 255, 255), 1)
+    def mouseMoveEvent(self, event):
+        delta = event.globalPosition().toPoint() - self.old_pos
+        self.move(self.pos() + delta)
+        self.old_pos = event.globalPosition().toPoint()
 
-    # Posture Charge Bar
-    cv2.putText(frame, "Notebook Focus Timer:", (15, 260), font, 0.4, (150, 150, 150), 1)
-    cv2.rectangle(frame, (15, 275), (315, 290), (50, 50, 50), -1) 
-    if elapsed_down_time > 0:
-        fill_width = int(min((elapsed_down_time / NOTEBOOK_WORK_THRESHOLD) * 300, 300))
-        bar_color = (0, 165, 255) # Orange warning
-        if fill_width == 300: bar_color = (50, 50, 255) # Red max
-        cv2.rectangle(frame, (15, 275), (15 + fill_width, 290), bar_color, -1)
-
-    # Cooldown Recharge Bar
-    cv2.putText(frame, "Distraction Weapon:", (15, 330), font, 0.4, (150, 150, 150), 1)
-    cv2.rectangle(frame, (15, 345), (315, 360), (50, 50, 50), -1) 
-    
-    if time_since_last > COOLDOWN_SECONDS:
-        cv2.rectangle(frame, (15, 345), (315, 360), (255, 0, 255), -1) # Purple ready
-        cv2.putText(frame, "ARMED & READY", (100, 356), font, 0.4, (255, 255, 255), 1)
-    else:
-        recharge_pct = time_since_last / COOLDOWN_SECONDS
-        fill_width = int(recharge_pct * 300)
-        cv2.rectangle(frame, (15, 345), (15 + fill_width, 360), (100, 100, 100), -1)
-        cv2.putText(frame, f"RECHARGING... {int(COOLDOWN_SECONDS - time_since_last)}s", (90, 356), font, 0.4, (255, 255, 255), 1)
-
-    # ==========================================
-    # 6. RENDER
-    # ==========================================
-    cv2.imshow("Anti-Productivity AI Dashboard", frame)
-
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-cap.release()
-cv2.destroyAllWindows()
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    hud = VisionHUD()
+    hud.show()
+    sys.exit(app.exec())
